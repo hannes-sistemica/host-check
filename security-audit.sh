@@ -148,11 +148,46 @@ check_filesystem() {
     fi
 
     print_subsection "SUID/SGID Files"
-    suid_sgid=$(find / -type f \( -perm -4000 -o -perm -2000 \) -exec ls -l {} \; 2>/dev/null)
+    echo "Checking for SUID/SGID files in critical directories..."
+    
+    # Define directories to search
+    SEARCH_DIRS="/usr/bin /usr/sbin /bin /sbin /usr/local/bin /usr/local/sbin /etc"
+    
+    # Use nice to reduce CPU priority and add -ls for better performance
+    suid_sgid=$(nice -n 19 find $SEARCH_DIRS -type f \( -perm -4000 -o -perm -2000 \) -ls 2>/dev/null)
+    
     if [ ! -z "$suid_sgid" ]; then
-        log_status "INFO" "SUID/SGID files" "\n$suid_sgid"
+        # Create a list of common/expected SUID/SGID files
+        declare -A expected_suid=(
+            ["/usr/bin/sudo"]=1
+            ["/usr/bin/passwd"]=1
+            ["/usr/bin/su"]=1
+            ["/usr/bin/ping"]=1
+            ["/usr/bin/mount"]=1
+            ["/usr/bin/umount"]=1
+            ["/usr/bin/chsh"]=1
+            ["/usr/bin/chfn"]=1
+            ["/usr/bin/gpasswd"]=1
+            ["/usr/bin/newgrp"]=1
+        )
+        
+        # Process and categorize findings
+        echo "Analyzing SUID/SGID files..."
+        unexpected=""
+        while IFS= read -r line; do
+            file_path=$(echo "$line" | awk '{print $11}')
+            if [ -z "${expected_suid[$file_path]}" ]; then
+                unexpected="$unexpected\n$line"
+            fi
+        done <<< "$suid_sgid"
+        
+        if [ ! -z "$unexpected" ]; then
+            log_status "WARN" "Unexpected SUID/SGID files found" "$unexpected"
+        else
+            log_status "PASS" "Only expected SUID/SGID files found" "\n$suid_sgid"
+        fi
     else
-        log_status "PASS" "No SUID/SGID files found"
+        log_status "WARN" "No SUID/SGID files found (unusual for a Linux system)"
     fi
 
     print_subsection "Critical File Permissions"
