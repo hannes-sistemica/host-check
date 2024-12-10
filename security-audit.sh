@@ -129,11 +129,22 @@ check_filesystem() {
     print_section_header "Filesystem Security Audit"
 
     print_subsection "World-Writable Files"
-    world_writable=$(find / -type f -perm -002 -exec ls -l {} \; 2>/dev/null | head -n 20)
+    echo "Searching for world-writable files (this might take a few moments)..."
+    
+    # Define directories to search
+    SEARCH_DIRS="/etc /usr /var /opt /home"
+    
+    # Define directories to exclude
+    EXCLUDE_DIRS="-path /var/log -prune -o -path /var/cache -prune -o -path /var/tmp -prune -o -path /var/spool -prune -o"
+    
+    # Use nice to reduce CPU priority and optimize the find command
+    world_writable=$(nice -n 19 find $SEARCH_DIRS $EXCLUDE_DIRS -type f -perm -002 -ls 2>/dev/null | head -n 20)
+    
     if [ ! -z "$world_writable" ]; then
         log_status "WARN" "World-writable files found (showing first 20)" "\n$world_writable"
+        log_status "INFO" "Common directories like /var/log, /var/cache, etc. were excluded"
     else
-        log_status "PASS" "No world-writable files found"
+        log_status "PASS" "No world-writable files found in critical directories"
     fi
 
     print_subsection "SUID/SGID Files"
@@ -288,7 +299,7 @@ main() {
     if [ "$EUID" -ne 0 ]; then 
         echo -e "${RED}Please run as root${NC}"
         exit 1
-    fi  # Changed from } to fi
+    fi  # Here was the error before - we must use 'fi' to end an 'if' statement in bash
 
     echo -e "${BLUE}${BOLD}Starting Security Audit...${NC}"
     echo -e "${YELLOW}Generated on: $(date)${NC}"
