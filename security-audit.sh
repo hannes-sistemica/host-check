@@ -334,7 +334,7 @@ main() {
     if [ "$EUID" -ne 0 ]; then 
         echo -e "${RED}Please run as root${NC}"
         exit 1
-    }
+    fi
 
     echo -e "${BLUE}${BOLD}Starting Security Audit...${NC}"
     echo -e "${YELLOW}Generated on: $(date)${NC}"
